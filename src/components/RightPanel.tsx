@@ -1,26 +1,31 @@
 import { useEffect, useState } from "react";
+import { useGitHubRepos, useGitHubUser } from "@/hooks/useGitHub";
+import { getSettings } from "@/lib/adminStore";
 
 const RightPanel = () => (
   <aside className="glass-panel p-4 flex flex-col gap-5 h-full overflow-y-auto">
-    <TelemetrySection />
+    <FlightTelemetry />
     <RadarWidget />
+    <GitHubStats />
     <LiveMetrics />
     <DataFeed />
   </aside>
 );
 
-const TelemetrySection = () => {
+const FlightTelemetry = () => {
+  const settings = getSettings();
+  const t = settings.telemetry;
   const metrics = [
-    { label: "CPU LOAD", value: "47.3%", color: "text-hud-green" },
-    { label: "MEMORY", value: "2.1 GB", color: "text-hud-cyan" },
-    { label: "LATENCY", value: "12ms", color: "text-hud-green" },
-    { label: "UPTIME", value: "99.7%", color: "text-hud-cyan" },
+    { label: "ALTITUDE", value: t.altitude, color: "text-hud-green" },
+    { label: "SPEED", value: t.speed, color: "text-hud-cyan" },
+    { label: "FUEL", value: t.fuel, color: "text-hud-amber" },
+    { label: "HEADING", value: t.heading, color: "text-hud-blue" },
   ];
 
   return (
     <section>
       <h3 className="font-display text-[10px] glow-text-sm tracking-[0.15em] mb-3 pb-1 border-b border-border">
-        ◆ Telemetry
+        ◆ Flight Telemetry
       </h3>
       <div className="grid grid-cols-2 gap-2">
         {metrics.map((m) => (
@@ -44,26 +49,39 @@ const RadarWidget = () => (
       {[1, 2, 3].map((r) => (
         <div
           key={r}
-          className="absolute inset-0 m-auto rounded-full border border-primary/10"
+          className="absolute rounded-full border border-primary/10"
           style={{
             width: `${r * 33}%`,
             height: `${r * 33}%`,
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
           }}
         />
       ))}
       {/* Cross */}
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="w-full h-px bg-primary/10" />
-      </div>
-      <div className="absolute inset-0 flex items-center justify-center">
-        <div className="h-full w-px bg-primary/10" />
-      </div>
-      {/* Sweep line */}
-      <div className="absolute inset-0 flex items-center justify-center">
+      <div className="absolute top-0 bottom-0 left-1/2 w-px bg-primary/10 -translate-x-1/2" />
+      <div className="absolute left-0 right-0 top-1/2 h-px bg-primary/10 -translate-y-1/2" />
+      {/* Sweep line — anchored to dead center */}
+      <div
+        className="absolute animate-radar-sweep"
+        style={{
+          top: "50%",
+          left: "50%",
+          width: 0,
+          height: 0,
+          transformOrigin: "0 0",
+        }}
+      >
         <div
-          className="h-1/2 w-px origin-bottom animate-radar-sweep"
           style={{
+            position: "absolute",
+            bottom: 0,
+            left: "-0.5px",
+            width: "1px",
+            height: "50cqmin",
             background: "linear-gradient(to top, hsl(180 100% 50% / 0.6), transparent)",
+            containerType: "inline-size",
           }}
         />
       </div>
@@ -82,12 +100,44 @@ const RadarWidget = () => (
             left: blip.left,
             width: blip.size,
             height: blip.size,
+            transform: "translate(-50%, -50%)",
           }}
         />
       ))}
     </div>
   </section>
 );
+
+const GitHubStats = () => {
+  const { data: repos } = useGitHubRepos();
+  const { data: user } = useGitHubUser();
+
+  const totalStars = repos?.reduce((s, r) => s + r.stargazers_count, 0) ?? 0;
+  const totalForks = repos?.reduce((s, r) => s + r.forks_count, 0) ?? 0;
+  const languages = new Set(repos?.map((r) => r.language).filter(Boolean));
+
+  return (
+    <section>
+      <h3 className="font-display text-[10px] glow-text-sm tracking-[0.15em] mb-3 pb-1 border-b border-border">
+        ◆ GitHub Intel
+      </h3>
+      <div className="space-y-1.5">
+        {[
+          { label: "REPOS", value: user?.public_repos ?? "—" },
+          { label: "STARS", value: totalStars },
+          { label: "FORKS", value: totalForks },
+          { label: "LANGUAGES", value: languages.size },
+          { label: "FOLLOWERS", value: user?.followers ?? "—" },
+        ].map((m) => (
+          <div key={m.label} className="flex justify-between text-xs">
+            <span className="text-muted-foreground">{m.label}</span>
+            <span className="text-hud-cyan tabular-nums font-display">{m.value}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
 
 const LiveMetrics = () => {
   const [vals, setVals] = useState([64, 78, 45, 91, 53]);
@@ -115,7 +165,7 @@ const LiveMetrics = () => {
                 style={{
                   height: `${v}%`,
                   marginTop: `${100 - v}%`,
-                  background: `linear-gradient(to top, hsl(180 100% 50% / 0.7), hsl(200 100% 60% / 0.3))`,
+                  background: "linear-gradient(to top, hsl(180 100% 50% / 0.7), hsl(200 100% 60% / 0.3))",
                 }}
               />
             </div>
@@ -133,13 +183,13 @@ const DataFeed = () => {
   useEffect(() => {
     const messages = [
       "[SYS] Render pipeline optimized",
-      "[NET] API response: 200 OK (12ms)",
-      "[MEM] GC completed — freed 48MB",
-      "[SEC] Auth token refreshed",
-      "[DEP] Build v2.4.1 deployed",
-      "[LOG] User session initiated",
+      "[GIT] Repos fetched successfully",
+      "[NET] API response: 200 OK",
+      "[SEC] Auth token validated",
+      "[DEP] Build deployed",
       "[SYS] Cache hit ratio: 94.2%",
       "[NET] WebSocket connected",
+      "[GIT] Commit history synced",
     ];
     let idx = 0;
     const iv = setInterval(() => {
@@ -156,10 +206,7 @@ const DataFeed = () => {
       </h3>
       <div className="bg-background/60 rounded p-2 h-28 overflow-hidden flex flex-col justify-end">
         {logs.map((log, i) => (
-          <p
-            key={`${i}-${log}`}
-            className="text-[10px] text-muted-foreground leading-relaxed animate-float-up"
-          >
+          <p key={`${i}-${log}`} className="text-[10px] text-muted-foreground leading-relaxed animate-float-up">
             {log}
           </p>
         ))}

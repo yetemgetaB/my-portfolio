@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
+import { getSettings } from "@/lib/adminStore";
 
 const HUDHeader = () => {
   const [time, setTime] = useState(new Date());
+  const settings = getSettings();
 
   useEffect(() => {
     const interval = setInterval(() => setTime(new Date()), 1000);
@@ -26,7 +28,7 @@ const HUDHeader = () => {
       </div>
 
       <h1 className="font-display text-sm sm:text-lg glow-text tracking-[0.2em] absolute left-1/2 -translate-x-1/2">
-        FLIGHT CONTROL
+        {settings.siteTitle}
       </h1>
 
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
